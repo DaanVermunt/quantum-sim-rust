@@ -1,14 +1,6 @@
-fn main() -> u8 {
-    println!("Hello, world!");
-    0
-}
+mod complex;
+mod matrix;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn it_works() {
-        assert_eq!(main(), 0);
-    }
+fn main() {
+    println!("Hello, world!");
 }
