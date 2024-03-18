@@ -1,6 +1,7 @@
 use std::ops::{Add, Div, Mul, Sub};
+use std::fmt;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct C {
     pub a: f64,
     pub b: f64,
@@ -53,6 +54,15 @@ impl Mul for C {
             a: self.a * other.a + self.b * other.b * -1.0,
             b: self.a * other.b + self.b * other.a,
         }
+    }
+}
+
+impl fmt::Debug for C {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.b as i32 == 0 {
+            return write!(f, "{:.2}", self.a);
+        }
+        write!(f, "<{:.2}, {:.2}i>", self.a, self.b)
     }
 }
 

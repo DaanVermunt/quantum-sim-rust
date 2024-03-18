@@ -3,8 +3,8 @@ use crate::{c, complex::*};
 use std::ops::{Add, Mul};
 
 #[derive(Debug, Clone, PartialEq)]
-struct Matrix {
-    data: Vec<Vec<C>>,
+pub struct Matrix {
+    pub data: Vec<Vec<C>>,
 }
 
 impl Add for Matrix {
@@ -43,11 +43,20 @@ impl Mul for Matrix {
 }
 
 impl Matrix {
-    fn new<T: Into<Vec<Vec<C>>>>(data: T) -> Matrix {
+    pub fn new<T: Into<Vec<Vec<C>>>>(data: T) -> Matrix {
         Matrix { data: data.into() }
     }
 
-    fn identity(size: usize) -> Matrix {
+    pub fn zero_sq(size: usize) -> Matrix {
+        Matrix::zero(size, size)
+    }
+
+    pub fn zero(rows: usize, cols: usize) -> Matrix {
+        let mut data = vec![vec![c!(0); cols]; rows];
+        Matrix { data: data }
+    }
+
+    pub fn identity(size: usize) -> Matrix {
         let mut data = vec![vec![c!(0); size]; size];
         for i in 0..size {
             data[i][i] = c!(1);
@@ -55,7 +64,7 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    fn transpose(&self) -> Matrix {
+    pub fn transpose(&self) -> Matrix {
         let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
@@ -65,7 +74,7 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    fn conjugate(&self) -> Matrix {
+    pub fn conjugate(&self) -> Matrix {
         let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
@@ -75,11 +84,11 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    fn adjoint(&self) -> Matrix {
+    pub fn adjoint(&self) -> Matrix {
         self.conjugate().transpose()
     }
 
-    fn negative_inverse(&self) -> Matrix {
+    pub fn negative_inverse(&self) -> Matrix {
         let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
@@ -89,7 +98,7 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    fn scalar_mul(&self, scalar: C) -> Matrix {
+    pub fn scalar_mul(&self, scalar: C) -> Matrix {
         let mut data = vec![vec![c!(1); self.data.len()]; self.data[0].len()];
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
@@ -99,7 +108,7 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    fn dot(&self, other: Matrix) -> C {
+    pub fn dot(&self, other: Matrix) -> C {
         let mut sum = c!(0);
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
@@ -109,7 +118,7 @@ impl Matrix {
         sum
     }
 
-    fn tensor(&self, other: Matrix) -> Matrix {
+    pub fn tensor(&self, other: Matrix) -> Matrix {
         let rows = self.data.len() * other.data.len();
         let cols = self.data[0].len() * other.data[0].len();
 
@@ -132,18 +141,18 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    fn norm(&self) -> C {
+    pub fn norm(&self) -> C {
         self.dot(self.clone()).sqrt()
     }
 
-    fn is_unitary(&self) -> bool {
+    pub fn is_unitary(&self) -> bool {
         let adj = self.adjoint();
         let id = Matrix::identity(self.data.len());
         let res = self.clone() * adj;
         res == id
     }
 
-    fn is_hermitian(&self) -> bool {
+    pub fn is_hermitian(&self) -> bool {
         self.clone() == self.adjoint()
     }
 }
