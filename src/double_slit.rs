@@ -26,7 +26,7 @@ fn setup_prob_matrix(slits: usize) -> Matrix {
 fn prob_double_slit(slits: usize, ) -> (Matrix, Matrix) {
     let B = setup_prob_matrix(slits);
     let transform = B.clone() * B.clone();
-    let mut x = Matrix::zero_sq(slits_to_matrix_size(slits));
+    let mut x = Matrix::zero(slits_to_matrix_size(slits), 1);
     x.data[0][0] = c!(1.0);
 
     (transform.clone(), transform * x)
@@ -53,7 +53,7 @@ fn setup_quantum_matrix(slits: usize) -> Matrix {
 fn quantum_double_slit(slits: usize, ) -> (Matrix, Matrix) {
     let B = setup_quantum_matrix(slits);
     let transform = B.clone() * B.clone();
-    let mut x = Matrix::zero(1 + slits + (slits * 2) + 1, 1);
+    let mut x = Matrix::zero(slits_to_matrix_size(slits), 1);
     x.data[0][0] = c!(1.0);
 
     (transform.clone(), transform * x)
