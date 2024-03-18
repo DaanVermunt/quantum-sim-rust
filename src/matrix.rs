@@ -24,10 +24,40 @@ impl Add for Matrix {
     }
 }
 
+impl Mul for &Matrix {
+    type Output = Matrix;
+
+    fn mul(self, other: &Matrix) -> Matrix {
+        self.multiply(&other)
+    }
+}
+
+impl Mul for &mut Matrix {
+    type Output = Matrix;
+
+    fn mul(self, other: &mut Matrix) -> Matrix {
+        self.multiply(&other)
+    }
+}
+
 impl Mul for Matrix {
     type Output = Matrix;
 
     fn mul(self, other: Matrix) -> Matrix {
+        self.multiply(&other)
+    }
+}
+
+impl Matrix {
+    pub fn new<T: Into<Vec<Vec<C>>>>(data: T) -> Matrix {
+        Matrix { data: data.into() }
+    }
+
+    pub fn zero_sq(size: usize) -> Matrix {
+        Matrix::zero(size, size)
+    }
+
+    pub fn multiply(&self, other: &Matrix) -> Matrix {
         assert_eq!(self.data[0].len(), other.data.len());
 
         let mut data = vec![vec![c!(0); other.data[0].len()]; self.data.len()];
@@ -39,16 +69,6 @@ impl Mul for Matrix {
             }
         }
         Matrix { data: data }
-    }
-}
-
-impl Matrix {
-    pub fn new<T: Into<Vec<Vec<C>>>>(data: T) -> Matrix {
-        Matrix { data: data.into() }
-    }
-
-    pub fn zero_sq(size: usize) -> Matrix {
-        Matrix::zero(size, size)
     }
 
     pub fn zero(rows: usize, cols: usize) -> Matrix {

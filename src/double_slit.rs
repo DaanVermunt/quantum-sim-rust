@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use crate::{c, complex::*, mat, matrix::*};
 
 fn slits_to_matrix_size(slits: usize) -> usize {
@@ -24,12 +26,14 @@ fn setup_prob_matrix(slits: usize) -> Matrix {
 }
 
 fn prob_double_slit(slits: usize, ) -> (Matrix, Matrix) {
-    let B = setup_prob_matrix(slits);
-    let transform = B.clone() * B.clone();
+    let mut B = setup_prob_matrix(slits);
+    let transform = &B * &B;
+
     let mut x = Matrix::zero(slits_to_matrix_size(slits), 1);
     x.data[0][0] = c!(1.0);
 
-    (transform.clone(), transform * x)
+    let res = &transform * &x;
+    (transform, res)
 }
 
 fn setup_quantum_matrix(slits: usize) -> Matrix {
@@ -52,16 +56,18 @@ fn setup_quantum_matrix(slits: usize) -> Matrix {
 
 fn quantum_double_slit(slits: usize, ) -> (Matrix, Matrix) {
     let B = setup_quantum_matrix(slits);
-    let transform = B.clone() * B.clone();
+    let transform = &B * &B;
     let mut x = Matrix::zero(slits_to_matrix_size(slits), 1);
     x.data[0][0] = c!(1.0);
 
-    (transform.clone(), transform * x)
+    let res = &transform * &x;
+    (transform, res)
 }
+
 fn bool_double_slit(start: Matrix, transformation: Matrix, steps: u32) -> Matrix {
     let mut state = start;
     for _ in 0..steps {
-        state = transformation.clone() * state;
+        state = &transformation * &state;
     }
     state
 }
@@ -89,7 +95,7 @@ mod tests {
             mat![c!(1); c!(0); c!(0);]
         );
         assert_eq!(
-            bool_double_slit(state0.clone(), transformation, 3),
+            bool_double_slit(state0.clone(), transformation.clone(), 3),
             mat![c!(0); c!(1); c!(0);]
         );
     }
