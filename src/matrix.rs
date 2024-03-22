@@ -95,7 +95,7 @@ impl Matrix {
     }
 
     pub fn conjugate(&self) -> Matrix {
-        let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
+        let mut data = self.data.clone();
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
                 data[i][j] = self.data[i][j].conjugate();
@@ -109,7 +109,7 @@ impl Matrix {
     }
 
     pub fn negative_inverse(&self) -> Matrix {
-        let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
+        let mut data = self.data.clone();
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
                 data[i][j] = c!(-1) * self.data[i][j];
@@ -119,7 +119,7 @@ impl Matrix {
     }
 
     pub fn scalar_mul(&self, scalar: C) -> Matrix {
-        let mut data = vec![vec![c!(1); self.data.len()]; self.data[0].len()];
+        let mut data = self.data.clone();
         for i in 0..self.data.len() {
             for j in 0..self.data[0].len() {
                 data[i][j] = self.data[i][j] * scalar;
@@ -161,8 +161,19 @@ impl Matrix {
         Matrix { data: data }
     }
 
-    pub fn norm(&self) -> C {
-        self.dot(self.clone()).sqrt()
+    pub fn norm(&self) -> f64 {
+        let mut norm = 0.0;
+        for i in 0..self.data.len() {
+            for j in 0..self.data[0].len() {
+                norm = norm + self.data[i][j].modulus().powf(2.0);
+            }
+        }
+        return norm.sqrt();
+    }
+
+    pub fn normalized(&self) -> Matrix {
+        let norm = self.norm();
+        self.scalar_mul(c!(1.0 / norm))
     }
 
     pub fn is_unitary(&self) -> bool {
@@ -174,6 +185,10 @@ impl Matrix {
 
     pub fn is_hermitian(&self) -> bool {
         self.clone() == self.adjoint()
+    }
+
+    pub fn is_vector(&self) -> bool {
+        self.data[0].len() == 1
     }
 }
 
@@ -280,7 +295,7 @@ mod tests {
     fn test_matrix_norm() {
         let m = mat!(c!(1), c!(2), c!(3)).transpose();
         let res = m.norm();
-        assert_eq!(res.a, 14.0_f64.sqrt());
+        assert_eq!(res, 14.0_f64.sqrt());
     }
 
     #[test]
@@ -383,5 +398,15 @@ mod tests {
             a2 * b9, a2 * b0, a2 * b1, a3 * b9, a3 * b0, a3 * b1;
         );
         assert_eq!(m4.tensor(m5), res2);
+    }
+
+    #[test]
+    fn test_matrix_is_vector() {
+        let m = mat!(c!(1), c!(2), c!(3));
+        assert!(!m.is_vector());
+        assert!(m.transpose().is_vector());
+
+        let m2 = mat!(c!(1), c!(2); c!(3), c!(4));
+        assert!(!m2.is_vector());
     }
 }

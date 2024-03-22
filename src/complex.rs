@@ -1,6 +1,8 @@
 use std::ops::{Add, Div, Mul, Sub};
 use std::fmt;
 
+use crate::util::f64_equal;
+
 #[derive(Copy, Clone, PartialEq)]
 pub struct C {
     pub a: f64,
@@ -59,10 +61,10 @@ impl Mul for C {
 
 impl fmt::Debug for C {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.b as i32 == 0 {
+        if f64_equal(self.b, 0.0) {
             return write!(f, "{:.2}", self.a);
         }
-        write!(f, "<{:.2}, {:.2}i>", self.a, self.b)
+        write!(f, "<{:.2}, {:.2} i>", self.a, self.b)
     }
 }
 

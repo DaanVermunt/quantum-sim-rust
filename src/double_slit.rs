@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use crate::{c, complex::*, mat, matrix::*};
 
 fn slits_to_matrix_size(slits: usize) -> usize {
@@ -135,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_prob_double_slit() {
-        let (transform, x) = prob_double_slit(2);
+        let (_, x) = prob_double_slit(2);
 
         let sixth = c!(1.0 / 6.0);
         let thirth = c!(1.0 / 3.0);
@@ -146,10 +144,10 @@ mod tests {
 
     #[test]
     fn test_quantum_double_slit() {
-        let (transform, x) = quantum_double_slit(2);
+        let (_, x) = quantum_double_slit(2);
         assert_eq!(x.data[5][0], c!(0));
 
-        let (transform, x2) = quantum_double_slit(4);
+        let (_, x2) = quantum_double_slit(4);
         assert_eq!(x2.data[7][0], c!(0));
         assert_eq!(x2.data[9][0], c!(0));
         assert_eq!(x2.data[11][0], c!(0));
