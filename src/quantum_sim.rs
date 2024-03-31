@@ -39,10 +39,15 @@ pub fn variance_transistion(ket: &Matrix, transform: &Matrix) -> C {
     let var_marix = transform.clone() + mu_marix.scalar_mul(c!(-1.0));
 
     let var_matrix_squared = &var_marix * &var_marix;
-    print!("{:?}", ket);
     let res = ket.transpose() * var_matrix_squared * ket.clone();
 
     res.data[0][0]
+}
+
+fn parse_quantum_program(program: String, variables: Vec<Matrix>) -> Matrix {
+
+
+    return mat![c!(0)]
 }
 
 #[cfg(test)]
@@ -101,7 +106,7 @@ mod tests {
         assert!(f64_equal(res.data[0][0].a, 2.0_f64.sqrt()));
         assert!(f64_equal(res.data[1][0].a, 0.0));
         assert!(f64_equal(res.data[1][0].b, 1.5 * 2.0_f64.sqrt()));
-    
+
         assert!(f64_equal(mean_transistion(&ket, &transform).a, 2.5));
         assert!(f64_equal(variance_transistion(&ket, &transform).a, 1.0));
     }
