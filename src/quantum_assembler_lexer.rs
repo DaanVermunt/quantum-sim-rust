@@ -23,7 +23,7 @@ fn match_token_type(token: &String) -> TokenType {
         "INITIALIZE" | "MEASURE" | "SELECT" | "APPLY" | "CONCAT" | "TENSOR" | "INVERSE" => {
             TokenType::Action
         }
-        "G_H" | "G_R_2" | "G_R_4" | "G_I" | "G_CNOT" => TokenType::Prefabs,
+        "G_H" | "G_R_2" | "G_R_4" | "G_I_2" | "G_I_4" | "G_I_8" | "G_CNOT" => TokenType::Prefabs, // TODO: MAKE _2 _4 params
         _ => {
             if token.parse::<i32>().is_ok() {
                 TokenType::Literal

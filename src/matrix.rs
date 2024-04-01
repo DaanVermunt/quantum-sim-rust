@@ -57,6 +57,74 @@ impl Matrix {
         Matrix::zero(size, size)
     }
 
+    pub fn zero(rows: usize, cols: usize) -> Matrix {
+        let data = vec![vec![c!(0); cols]; rows];
+        Matrix { data }
+    }
+
+    pub fn set(&self, row: usize, col: usize, value: C) -> Matrix {
+        let mut data = self.data.clone();
+        data[row][col] = value;
+        Matrix { data }
+    }
+
+    pub fn identity(size: usize) -> Matrix {
+        let mut data = vec![vec![c!(0); size]; size];
+        for i in 0..size {
+            data[i][i] = c!(1);
+        }
+        Matrix { data }
+    }
+
+    pub fn transpose(&self) -> Matrix {
+        let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
+        for i in 0..self.data.len() {
+            for j in 0..self.data[0].len() {
+                data[j][i] = self.data[i][j];
+            }
+        }
+        Matrix { data }
+    }
+
+    pub fn conjugate(&self) -> Matrix {
+        let mut data = self.data.clone();
+        for i in 0..self.data.len() {
+            for j in 0..self.data[0].len() {
+                data[i][j] = self.data[i][j].conjugate();
+            }
+        }
+        Matrix { data }
+    }
+
+    pub fn adjoint(&self) -> Matrix {
+        self.conjugate().transpose()
+    }
+
+    pub fn normalized(&self) -> Matrix {
+        let norm = self.norm();
+        self.scalar_mul(c!(1.0 / norm))
+    }
+
+    pub fn negative_inverse(&self) -> Matrix {
+        let mut data = self.data.clone();
+        for i in 0..self.data.len() {
+            for j in 0..self.data[0].len() {
+                data[i][j] = c!(-1) * self.data[i][j];
+            }
+        }
+        Matrix { data }
+    }
+
+    pub fn scalar_mul(&self, scalar: C) -> Matrix {
+        let mut data = self.data.clone();
+        for i in 0..self.data.len() {
+            for j in 0..self.data[0].len() {
+                data[i][j] = self.data[i][j] * scalar;
+            }
+        }
+        Matrix { data }
+    }
+
     pub fn multiply(&self, other: &Matrix) -> Matrix {
         assert_eq!(self.data[0].len(), other.data.len());
 
@@ -68,64 +136,7 @@ impl Matrix {
                 }
             }
         }
-        Matrix { data: data }
-    }
-
-    pub fn zero(rows: usize, cols: usize) -> Matrix {
-        let mut data = vec![vec![c!(0); cols]; rows];
-        Matrix { data: data }
-    }
-
-    pub fn identity(size: usize) -> Matrix {
-        let mut data = vec![vec![c!(0); size]; size];
-        for i in 0..size {
-            data[i][i] = c!(1);
-        }
-        Matrix { data: data }
-    }
-
-    pub fn transpose(&self) -> Matrix {
-        let mut data = vec![vec![c!(0); self.data.len()]; self.data[0].len()];
-        for i in 0..self.data.len() {
-            for j in 0..self.data[0].len() {
-                data[j][i] = self.data[i][j];
-            }
-        }
-        Matrix { data: data }
-    }
-
-    pub fn conjugate(&self) -> Matrix {
-        let mut data = self.data.clone();
-        for i in 0..self.data.len() {
-            for j in 0..self.data[0].len() {
-                data[i][j] = self.data[i][j].conjugate();
-            }
-        }
-        Matrix { data: data }
-    }
-
-    pub fn adjoint(&self) -> Matrix {
-        self.conjugate().transpose()
-    }
-
-    pub fn negative_inverse(&self) -> Matrix {
-        let mut data = self.data.clone();
-        for i in 0..self.data.len() {
-            for j in 0..self.data[0].len() {
-                data[i][j] = c!(-1) * self.data[i][j];
-            }
-        }
-        Matrix { data: data }
-    }
-
-    pub fn scalar_mul(&self, scalar: C) -> Matrix {
-        let mut data = self.data.clone();
-        for i in 0..self.data.len() {
-            for j in 0..self.data[0].len() {
-                data[i][j] = self.data[i][j] * scalar;
-            }
-        }
-        Matrix { data: data }
+        Matrix { data }
     }
 
     pub fn dot(&self, other: Matrix) -> C {
@@ -138,7 +149,7 @@ impl Matrix {
         sum
     }
 
-    pub fn tensor(&self, other: Matrix) -> Matrix {
+    pub fn tensor(&self, other: &Matrix) -> Matrix {
         let rows = self.data.len() * other.data.len();
         let cols = self.data[0].len() * other.data[0].len();
 
@@ -158,7 +169,7 @@ impl Matrix {
                 data[i][j] = self.data[row][col] * other.data[row2][col2];
             }
         }
-        Matrix { data: data }
+        Matrix { data }
     }
 
     pub fn norm(&self) -> f64 {
@@ -169,11 +180,6 @@ impl Matrix {
             }
         }
         return norm.sqrt();
-    }
-
-    pub fn normalized(&self) -> Matrix {
-        let norm = self.norm();
-        self.scalar_mul(c!(1.0 / norm))
     }
 
     pub fn is_unitary(&self) -> bool {
@@ -190,6 +196,11 @@ impl Matrix {
     pub fn is_vector(&self) -> bool {
         self.data[0].len() == 1
     }
+
+    pub fn size(&self) -> (usize, usize) {
+        // (cols, rows)
+        (self.data.len(), self.data[0].len())
+    }
 }
 
 #[macro_export]
@@ -197,6 +208,30 @@ macro_rules! mat {
     ($($($a:expr),+);+ $(;)?) => {
         Matrix::new(vec![$(vec![$($a),+]),+])
     };
+}
+
+pub fn hadamard() -> Matrix {
+    mat![
+        c!(1), c!(1);
+        c!(1), c!(-1);
+    ]
+    .scalar_mul(c!(1.0 / 2.0_f64.sqrt()))
+}
+
+pub fn cnot() -> Matrix {
+    mat![
+        c!(1), c!(0), c!(0), c!(0);
+        c!(0), c!(1), c!(0), c!(0);
+        c!(0), c!(0), c!(0), c!(1);
+        c!(0), c!(0), c!(1), c!(0);
+    ]
+}
+
+pub fn phase_shift(phase: f64) -> Matrix {
+    mat![
+        c!(1), c!(0);
+        c!(0), c!(phase.cos(), phase.sin());
+    ]
 }
 
 #[cfg(test)]
@@ -346,7 +381,7 @@ mod tests {
             c!(7);
         );
 
-        let m3 = m1.tensor(m2);
+        let m3 = m1.tensor(&m2);
 
         let res = mat!(
             c!(1) * c!(5);
@@ -397,7 +432,7 @@ mod tests {
             a2 * b6, a2 * b7, a2 * b8, a3 * b6, a3 * b7, a3 * b8;
             a2 * b9, a2 * b0, a2 * b1, a3 * b9, a3 * b0, a3 * b1;
         );
-        assert_eq!(m4.tensor(m5), res2);
+        assert_eq!(m4.tensor(&m5), res2);
     }
 
     #[test]

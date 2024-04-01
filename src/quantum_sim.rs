@@ -104,8 +104,7 @@ mod tests {
         let res = apply_transformation(&ket, &transform);
 
         assert!(f64_equal(res.data[0][0].a, 2.0_f64.sqrt()));
-        assert!(f64_equal(res.data[1][0].a, 0.0));
-        assert!(f64_equal(res.data[1][0].b, 1.5 * 2.0_f64.sqrt()));
+        assert_eq!(res.data[1][0], c!(0.0, 1.5 * 2.0_f64.sqrt()));
 
         assert!(f64_equal(mean_transistion(&ket, &transform).a, 2.5));
         assert!(f64_equal(variance_transistion(&ket, &transform).a, 1.0));

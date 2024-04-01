@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::util::f64_equal;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone)]
 pub struct C {
     pub a: f64,
     pub b: f64,
@@ -13,6 +13,12 @@ pub struct C {
 pub struct CPolar {
     r: f64,
     t: f64,
+}
+
+impl PartialEq for C {
+    fn eq(&self, other: &C) -> bool {
+        f64_equal(self.a, other.a) && f64_equal(self.b, other.b)
+    }
 }
 
 impl Add for C {
