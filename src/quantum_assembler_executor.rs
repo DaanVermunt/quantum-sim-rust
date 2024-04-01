@@ -1,7 +1,7 @@
 use std::{collections::HashMap, error, f64::consts::PI, fmt, vec};
 
 use crate::{
-    c, cnot, hadamard, mat, matrix, phase_shift,
+    c, cnot, hadamard, mat, matrix, measure_vec, phase_shift,
     quantum_assembler_parser::{ASTNode, AST},
     Matrix, C,
 };
@@ -211,9 +211,7 @@ pub fn parse_func_application(
                 ));
             }
 
-            // TODO: Measure should collapse the state
-
-            measurements.insert(var_name, (vec.clone(), "".to_string()));
+            measurements.insert(var_name, (vec.clone(), measure_vec(vec)));
             Ok(None)
         }
         _ => Err(RunTimeError::NotImplemented),
@@ -276,6 +274,7 @@ mod tests {
         let res = res.unwrap();
         assert!(res.contains_key("RES"));
         assert_eq!(res.get("RES").unwrap().0, mat![c!(1); c!(0); c!(0); c!(0)]);
+        assert_eq!(res.get("RES").unwrap().1, "00");
     }
 
     #[test]
