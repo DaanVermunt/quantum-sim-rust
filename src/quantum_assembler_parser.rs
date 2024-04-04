@@ -3,10 +3,16 @@ use std::{error, fmt, rc::Rc};
 use crate::quantum_assembler_lexer::{tokenize, Token, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum MemoryLocation {
+    Heap,
+    Measurement,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ASTNode {
     Literal(String),
     Identifier(String),
-    VariableAssignment(String, Rc<ASTNode>),
+    VariableAssignment(String, MemoryLocation, Rc<ASTNode>),
 
     FunctionApplication(String, Vec<ASTNode>),
 }
@@ -57,6 +63,7 @@ pub fn parse_dual_token_group(
     match action.value.as_str() {
         "APPLY" => Ok(ASTNode::VariableAssignment(
             param1.value.clone(),
+            MemoryLocation::Heap,
             Rc::new(ASTNode::FunctionApplication(
                 action.value.clone(),
                 vec![parse_param(param0).unwrap(), parse_param(param1).unwrap()],
@@ -64,14 +71,19 @@ pub fn parse_dual_token_group(
         )),
         "INITIALIZE" => Ok(ASTNode::VariableAssignment(
             param0.value.clone(),
+            MemoryLocation::Heap,
             Rc::new(ASTNode::FunctionApplication(
                 action.value.clone(),
                 vec![parse_param(param1).unwrap()],
             )),
         )),
-        "MEASURE" => Ok(ASTNode::FunctionApplication(
-            action.value.clone(),
-            vec![parse_param(param0).unwrap(), parse_param(param1).unwrap()],
+        "MEASURE" => Ok(ASTNode::VariableAssignment(
+            param1.value.clone(),
+            MemoryLocation::Measurement,
+            Rc::new(ASTNode::FunctionApplication(
+                action.value.clone(),
+                vec![parse_param(param0).unwrap()],
+            )),
         )),
         _ => Err(ParseError::SyntaxError(format!(
             "Invalid dual action {} - {:?}",
@@ -90,6 +102,7 @@ pub fn parse_quat_token_group(
     match action.value.as_str() {
         "SELECT" => Ok(ASTNode::VariableAssignment(
             param0.value.clone(),
+            MemoryLocation::Heap,
             Rc::new(ASTNode::FunctionApplication(
                 action.value.clone(),
                 vec![
@@ -114,6 +127,7 @@ pub fn parse_ass_single_token_group(
     match action.value.as_str() {
         "INVERSE" => Ok(ASTNode::VariableAssignment(
             ass.value.clone(),
+            MemoryLocation::Heap,
             Rc::new(ASTNode::FunctionApplication(
                 action.value.clone(),
                 vec![parse_param(param1).unwrap()],
@@ -135,6 +149,7 @@ pub fn parse_ass_dual_token_group(
     match action.value.as_str() {
         "TENSOR" | "CONCAT" => Ok(ASTNode::VariableAssignment(
             ass.value.clone(),
+            MemoryLocation::Heap,
             Rc::new(ASTNode::FunctionApplication(
                 action.value.clone(),
                 vec![parse_param(param1).unwrap(), parse_param(param2).unwrap()],
@@ -150,6 +165,7 @@ pub fn parse_ass_dual_token_group(
 pub fn parse_vector_init(ass: &Token, params: &Vec<Token>) -> Result<ASTNode, ParseError> {
     let res = ASTNode::VariableAssignment(
         ass.value.clone(),
+        MemoryLocation::Heap,
         Rc::new(ASTNode::FunctionApplication(
             "INITIALIZE".to_string(),
             vec![ASTNode::FunctionApplication(
@@ -220,7 +236,7 @@ mod tests {
         let input = "INITIALIZE R 2
         U TENSOR G_H G_H
         APPLY U R
-        MEASURE R 'RES'"
+        MEASURE R RES"
             .to_string();
         let res = parse(input);
 
@@ -230,6 +246,7 @@ mod tests {
             vec![
                 ASTNode::VariableAssignment(
                     "R".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "INITIALIZE".to_string(),
                         vec![ASTNode::Literal("2".to_string())]
@@ -237,6 +254,7 @@ mod tests {
                 ),
                 ASTNode::VariableAssignment(
                     "U".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "TENSOR".to_string(),
                         vec![
@@ -247,6 +265,7 @@ mod tests {
                 ),
                 ASTNode::VariableAssignment(
                     "R".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "APPLY".to_string(),
                         vec![
@@ -255,12 +274,13 @@ mod tests {
                         ]
                     ))
                 ),
-                ASTNode::FunctionApplication(
-                    "MEASURE".to_string(),
-                    vec![
-                        ASTNode::Identifier("R".to_string()),
-                        ASTNode::Literal("RES".to_string())
-                    ]
+                ASTNode::VariableAssignment(
+                    "RES".to_string(),
+                    MemoryLocation::Measurement,
+                    Rc::new(ASTNode::FunctionApplication(
+                        "MEASURE".to_string(),
+                        vec![ASTNode::Identifier("R".to_string())]
+                    )),
                 )
             ]
         );
@@ -280,6 +300,7 @@ mod tests {
             vec![
                 ASTNode::VariableAssignment(
                     "R".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "INITIALIZE".to_string(),
                         vec![ASTNode::FunctionApplication(
@@ -294,6 +315,7 @@ mod tests {
                 ),
                 ASTNode::VariableAssignment(
                     "R".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "INITIALIZE".to_string(),
                         vec![ASTNode::FunctionApplication("VECTOR".to_string(), vec![])]
@@ -301,6 +323,7 @@ mod tests {
                 ),
                 ASTNode::VariableAssignment(
                     "R".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "INITIALIZE".to_string(),
                         vec![ASTNode::FunctionApplication(
@@ -314,13 +337,52 @@ mod tests {
     }
 
     #[test]
+    fn test_select() {
+        let input = "SELECT S1 R1 2 3
+        SELECT S2 R2 4 5"
+            .to_string();
+        let res = parse(input);
+
+        assert!(res.is_ok());
+        assert_eq!(
+            res.unwrap(),
+            vec![
+                ASTNode::VariableAssignment(
+                    "S1".to_string(),
+                    MemoryLocation::Heap,
+                    Rc::new(ASTNode::FunctionApplication(
+                        "SELECT".to_string(),
+                        vec![
+                            ASTNode::Identifier("R1".to_string()),
+                            ASTNode::Literal("2".to_string()),
+                            ASTNode::Literal("3".to_string())
+                        ]
+                    ))
+                ),
+                ASTNode::VariableAssignment(
+                    "S2".to_string(),
+                    MemoryLocation::Heap,
+                    Rc::new(ASTNode::FunctionApplication(
+                        "SELECT".to_string(),
+                        vec![
+                            ASTNode::Identifier("R2".to_string()),
+                            ASTNode::Literal("4".to_string()),
+                            ASTNode::Literal("5".to_string())
+                        ]
+                    ))
+                ),
+            ]
+        );
+    }
+
+    #[test]
     fn test_empty_lines() {
         let input = "
 
         INITIALIZE R 2
 
 
-        MEASURE R 'RES'
+        MEASURE R RES
 
         "
         .to_string();
@@ -334,17 +396,19 @@ mod tests {
             vec![
                 ASTNode::VariableAssignment(
                     "R".to_string(),
+                    MemoryLocation::Heap,
                     Rc::new(ASTNode::FunctionApplication(
                         "INITIALIZE".to_string(),
                         vec![ASTNode::Literal("2".to_string())]
                     ))
                 ),
-                ASTNode::FunctionApplication(
-                    "MEASURE".to_string(),
-                    vec![
-                        ASTNode::Identifier("R".to_string()),
-                        ASTNode::Literal("RES".to_string())
-                    ]
+                ASTNode::VariableAssignment(
+                    "RES".to_string(),
+                    MemoryLocation::Measurement,
+                    Rc::new(ASTNode::FunctionApplication(
+                        "MEASURE".to_string(),
+                        vec![ASTNode::Identifier("R".to_string())]
+                    )),
                 ),
             ]
         );

@@ -27,8 +27,6 @@ fn match_token_type(token: &String) -> TokenType {
         _ => {
             if token.parse::<i32>().is_ok() {
                 TokenType::Literal
-            } else if token.starts_with("'") && token.ends_with("'") {
-                TokenType::Literal
             } else {
                 TokenType::Identifier
             }
@@ -132,7 +130,7 @@ mod tests {
                     value: "R".to_string()
                 },
                 Token {
-                    token_type: TokenType::Literal,
+                    token_type: TokenType::Identifier,
                     value: "RES".to_string()
                 },
             ]

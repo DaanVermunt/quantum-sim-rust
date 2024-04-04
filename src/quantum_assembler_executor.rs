@@ -1,8 +1,8 @@
 use std::{collections::HashMap, error, f64::consts::PI, fmt, vec};
 
 use crate::{
-    c, cnot, hadamard, mat, matrix, measure_vec, phase_shift,
-    quantum_assembler_parser::{ASTNode, AST},
+    c, cnot, hadamard, mat, matrix, measure_partial_vec, measure_vec, phase_shift, qbit_length,
+    quantum_assembler_parser::{ASTNode, MemoryLocation, AST},
     Matrix, C,
 };
 
@@ -30,16 +30,39 @@ impl error::Error for RunTimeError {
     }
 }
 
+type Heap = HashMap<String, LiteralValue>;
+type Measurements = HashMap<String, (Matrix, String)>;
+type Selection = HashMap<String, (String, MemoryLocation, i32, i32)>;
+
+#[derive(Debug)]
+pub struct QuantumMemory {
+    heap: Heap,
+    measurements: Measurements,
+    selections: Selection,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiteralValue {
     Matrix(Matrix),
     Int(i32),
-    String(String),
+
+    Selection(String, MemoryLocation, i32, i32),
+
+    Measurement(Matrix, String),
 }
 
 pub fn unwrap_matrix(lit: &LiteralValue) -> Result<&Matrix, RunTimeError> {
     match lit {
         LiteralValue::Matrix(m) => Ok(m),
+        _ => Err(RunTimeError::SyntaxError("Invalid matrix".to_string())),
+    }
+}
+
+pub fn unwrap_selection(
+    lit: &LiteralValue,
+) -> Result<(&String, &MemoryLocation, &i32, &i32), RunTimeError> {
+    match lit {
+        LiteralValue::Selection(key, mem, from, to) => Ok((key, mem, from, to)),
         _ => Err(RunTimeError::SyntaxError("Invalid matrix".to_string())),
     }
 }
@@ -51,14 +74,10 @@ pub fn unwrap_int(lit: &LiteralValue) -> Result<&i32, RunTimeError> {
     }
 }
 
-pub fn unwrap_string(lit: &LiteralValue) -> Result<&String, RunTimeError> {
-    match lit {
-        LiteralValue::String(m) => Ok(m),
-        _ => Err(RunTimeError::SyntaxError("Invalid matrix".to_string())),
-    }
-}
-
-pub fn validate_param_len(params: &Vec<LiteralValue>, expected: usize) -> Result<(), RunTimeError> {
+pub fn validate_param_len(
+    params: &Vec<(String, LiteralValue)>,
+    expected: usize,
+) -> Result<(), RunTimeError> {
     if params.len() != expected {
         return Err(RunTimeError::SyntaxError(
             "Invalid number of parameters".to_string(),
@@ -79,19 +98,18 @@ pub fn parse_literal(v: &String) -> Result<LiteralValue, RunTimeError> {
         "G_CNOT" => Ok(LiteralValue::Matrix(cnot())),
         _ => {
             if v.parse::<i32>().is_ok() {
-                Ok(LiteralValue::Int(v.parse::<i32>().unwrap()))
-            } else {
-                Ok(LiteralValue::String(v.clone()))
+                return Ok(LiteralValue::Int(v.parse::<i32>().unwrap()));
             }
+            Err(RunTimeError::SyntaxError("Invalid literal".to_string()))
         }
     }
 }
 
 pub fn parse_identifier(
     var_name: &String,
-    heap: &HashMap<String, LiteralValue>,
+    memory: &QuantumMemory,
 ) -> Result<LiteralValue, RunTimeError> {
-    match heap.get(var_name) {
+    match memory.heap.get(var_name) {
         Some(val) => Ok(val.clone()),
         None => Err(RunTimeError::SyntaxError("Variable not found".to_string())),
     }
@@ -100,13 +118,27 @@ pub fn parse_identifier(
 pub fn parse_var_assignment(
     var_name: &String,
     val: &ASTNode,
-    heap: &mut HashMap<String, LiteralValue>,
-    measurements: &mut HashMap<String, (Matrix, String)>,
+    memory_loc: &MemoryLocation,
+    memory: &mut QuantumMemory,
 ) -> Result<Option<LiteralValue>, RunTimeError> {
-    let val = execute_ast_node(val, heap, measurements).unwrap();
+    let val = execute_ast_node(val, memory).unwrap();
     match val {
         Some(val) => {
-            heap.insert(var_name.clone(), val);
+            match (memory_loc, val.clone()) {
+                (MemoryLocation::Heap, (_, LiteralValue::Int(_))) => {
+                    memory.heap.insert(var_name.clone(), val.1);
+                }
+                (MemoryLocation::Heap, (_, LiteralValue::Matrix(_))) => {
+                    memory.heap.insert(var_name.clone(), val.1);
+                }
+                (MemoryLocation::Heap, (_, LiteralValue::Selection(_, _, _, _))) => {
+                    memory.heap.insert(var_name.clone(), val.1);
+                }
+                (MemoryLocation::Measurement, (_, LiteralValue::Measurement(a, b))) => {
+                    memory.measurements.insert(var_name.clone(), (a, b));
+                }
+                _ => return Err(RunTimeError::SyntaxError("Invalid assignment".to_string())),
+            };
             Ok(None)
         }
         None => Err(RunTimeError::SyntaxError("Variable not found".to_string())),
@@ -116,28 +148,30 @@ pub fn parse_var_assignment(
 pub fn parse_func_application(
     func: &String,
     params: &Vec<ASTNode>,
-    heap: &mut HashMap<String, LiteralValue>,
-    measurements: &mut HashMap<String, (Matrix, String)>,
-) -> Result<Option<LiteralValue>, RunTimeError> {
+    memory: &mut QuantumMemory,
+) -> Result<Option<(String, LiteralValue)>, RunTimeError> {
     let params = params
         .iter()
-        .map(|p| execute_ast_node(p, heap, measurements).unwrap())
+        .map(|p| execute_ast_node(p, memory).unwrap())
         .filter_map(|p| p)
-        .collect::<Vec<LiteralValue>>();
+        .collect::<Vec<(String, LiteralValue)>>();
 
     match &func[..] {
         "INITIALIZE" => {
             validate_param_len(&params, 1).unwrap();
 
-            let value = unwrap_int(&params[0]).unwrap();
+            let value = unwrap_int(&params[0].1).unwrap();
 
             let matrix = Matrix::zero(value.clone().pow(2) as usize, 1);
-            Ok(Some(LiteralValue::Matrix(matrix.set(0, 0, c!(1)))))
+            Ok(Some((
+                func.clone(),
+                LiteralValue::Matrix(matrix.set(0, 0, c!(1))),
+            )))
         }
         "INVERSE" => {
             validate_param_len(&params, 1).unwrap();
 
-            let matrix = unwrap_matrix(&params[0]).unwrap();
+            let matrix = unwrap_matrix(&params[0].1).unwrap();
 
             if !matrix.is_hermitian() {
                 return Err(RunTimeError::SyntaxError(
@@ -145,21 +179,24 @@ pub fn parse_func_application(
                 ));
             }
 
-            Ok(Some(LiteralValue::Matrix(matrix.adjoint())))
+            Ok(Some((func.clone(), LiteralValue::Matrix(matrix.adjoint()))))
         }
         "TENSOR" => {
             validate_param_len(&params, 2).unwrap();
 
-            let matrix1 = unwrap_matrix(&params[0]).unwrap();
-            let matrix2 = unwrap_matrix(&params[1]).unwrap();
+            let matrix1 = unwrap_matrix(&params[0].1).unwrap();
+            let matrix2 = unwrap_matrix(&params[1].1).unwrap();
 
-            Ok(Some(LiteralValue::Matrix(matrix1.tensor(matrix2))))
+            Ok(Some((
+                func.clone(),
+                LiteralValue::Matrix(matrix1.tensor(matrix2)),
+            )))
         }
         "CONCAT" => {
             validate_param_len(&params, 2).unwrap();
 
-            let matrix1 = unwrap_matrix(&params[0]).unwrap();
-            let matrix2 = unwrap_matrix(&params[1]).unwrap();
+            let matrix1 = unwrap_matrix(&params[0].1).unwrap();
+            let matrix2 = unwrap_matrix(&params[1].1).unwrap();
 
             if matrix1.size() != matrix2.size() {
                 return Err(RunTimeError::SyntaxError(
@@ -167,13 +204,16 @@ pub fn parse_func_application(
                 ));
             }
 
-            Ok(Some(LiteralValue::Matrix(matrix1 * matrix2)))
+            Ok(Some((
+                func.clone(),
+                LiteralValue::Matrix(matrix1 * matrix2),
+            )))
         }
         "APPLY" => {
             validate_param_len(&params, 2).unwrap();
 
-            let matrix = unwrap_matrix(&params[0]).unwrap();
-            let vector = unwrap_matrix(&params[1]).unwrap();
+            let matrix = unwrap_matrix(&params[0].1).unwrap();
+            let vector = unwrap_matrix(&params[1].1).unwrap();
 
             if !vector.is_vector() || vector.size().0 != matrix.size().1 || !matrix.is_hermitian() {
                 return Err(RunTimeError::SyntaxError(
@@ -181,29 +221,55 @@ pub fn parse_func_application(
                 ));
             }
 
-            Ok(Some(LiteralValue::Matrix(matrix * vector)))
+            Ok(Some((func.clone(), LiteralValue::Matrix(matrix * vector))))
         }
         "SELECT" => {
             validate_param_len(&params, 3).unwrap();
 
-            let matrix = unwrap_matrix(&params[0]).unwrap();
-            let start = unwrap_int(&params[1]).unwrap();
-            let end = unwrap_int(&params[2]).unwrap();
+            let key = params[0].0.clone();
+            let vector = unwrap_matrix(&params[0].1).unwrap();
+            let start = unwrap_int(&params[1].1).unwrap();
+            let end = unwrap_int(&params[2].1).unwrap();
 
-            if start > end || (*end as usize) > matrix.size().0 {
+            let qbit_len = qbit_length(vector);
+            if !vector.is_vector() || start > end || (*end as usize) > qbit_len {
                 return Err(RunTimeError::SyntaxError(
                     "Invalid range for SELECT".to_string(),
                 ));
             }
 
-            // TODO: Implement select
-            Err(RunTimeError::NotImplemented)
+            Ok(Some((
+                func.clone(),
+                LiteralValue::Selection(
+                    key.clone(),
+                    MemoryLocation::Heap,
+                    start.clone(),
+                    end.clone(),
+                ),
+            )))
         }
         "MEASURE" => {
-            validate_param_len(&params, 2).unwrap();
+            validate_param_len(&params, 1).unwrap();
 
-            let vec = unwrap_matrix(&params[0]).unwrap();
-            let var_name = unwrap_string(&params[1]).unwrap().to_string();
+            let vec = unwrap_matrix(&params[0].1);
+
+            if (vec.is_ok()) {
+                let vec = vec.unwrap();
+                if !vec.is_vector() {
+                    return Err(RunTimeError::SyntaxError(
+                        "Invalid input for MEASURE, should be a vector".to_string(),
+                    ));
+                }
+
+                return Ok(Some((
+                    func.clone(),
+                    LiteralValue::Measurement(vec.clone(), measure_vec(vec)),
+                )));
+            }
+
+            let (key, _, from, to) = unwrap_selection(&params[0].1).unwrap();
+            let matrix = memory.heap.get(key).unwrap().clone();
+            let vec = unwrap_matrix(&matrix).unwrap();
 
             if !vec.is_vector() {
                 return Err(RunTimeError::SyntaxError(
@@ -211,8 +277,16 @@ pub fn parse_func_application(
                 ));
             }
 
-            measurements.insert(var_name, (vec.clone(), measure_vec(vec)));
-            Ok(None)
+            let res = measure_partial_vec(vec, *from, *to);
+
+            memory
+                .heap
+                .insert(key.clone(), LiteralValue::Matrix(res.clone()));
+
+            Ok(Some((
+                func.clone(),
+                LiteralValue::Measurement(res.clone(), measure_vec(&res)),
+            )))
         }
         _ => Err(RunTimeError::NotImplemented),
     }
@@ -220,34 +294,41 @@ pub fn parse_func_application(
 
 pub fn execute_ast_node(
     ast_node: &ASTNode,
-    heap: &mut HashMap<String, LiteralValue>,
-    measurements: &mut HashMap<String, (Matrix, String)>,
-) -> Result<Option<LiteralValue>, RunTimeError> {
+    memory: &mut QuantumMemory,
+) -> Result<Option<(String, LiteralValue)>, RunTimeError> {
     match ast_node {
-        ASTNode::Literal(val) => Ok(Some(parse_literal(val).unwrap())),
-        ASTNode::Identifier(var_name) => Ok(Some(parse_identifier(var_name, heap).unwrap())),
-        ASTNode::VariableAssignment(var_name, val) => {
-            parse_var_assignment(var_name, &*val, heap, measurements).unwrap();
+        ASTNode::Literal(val) => Ok(Some(("_".to_string(), parse_literal(val).unwrap()))),
+        ASTNode::Identifier(var_name) => Ok(Some((
+            var_name.clone(),
+            parse_identifier(var_name, memory).unwrap(),
+        ))),
+        ASTNode::VariableAssignment(var_name, memory_loc, val) => {
+            parse_var_assignment(var_name, &*val, memory_loc, memory).unwrap();
             Ok(None)
         }
-        ASTNode::FunctionApplication(func, params) => {
-            parse_func_application(func, params, heap, measurements)
-        }
+        ASTNode::FunctionApplication(func, params) => parse_func_application(func, params, memory),
     }
 }
 
 pub fn execute_script(ast: AST) -> Result<HashMap<String, (Matrix, String)>, RunTimeError> {
-    let mut heap = HashMap::<String, LiteralValue>::new();
-    let mut measurements = HashMap::<String, (Matrix, String)>::new();
+    let heap = HashMap::<String, LiteralValue>::new();
+    let measurements = HashMap::<String, (Matrix, String)>::new();
+    let selections = HashMap::<String, (String, MemoryLocation, i32, i32)>::new();
+
+    let mut memory = QuantumMemory {
+        heap,
+        measurements,
+        selections,
+    };
 
     // LOOP TROUGH AST AND RUN
     for node in ast {
         println!("{:?}", node);
-        println!("{:?}", heap);
-        execute_ast_node(&node, &mut heap, &mut measurements).unwrap();
+        println!("{:?}", memory.heap);
+        execute_ast_node(&node, &mut memory).unwrap();
     }
 
-    Ok(measurements)
+    Ok(memory.measurements)
 }
 
 #[cfg(test)]
@@ -261,7 +342,7 @@ mod tests {
         let ast = parse(
             "
         INITIALIZE R 2
-        MEASURE R 'RES'
+        MEASURE R RES
         "
             .to_string(),
         );
@@ -284,7 +365,7 @@ mod tests {
         INITIALIZE R 2
         U TENSOR G_H G_H
         APPLY U R
-        MEASURE R 'RES'
+        MEASURE R RES
         "
             .to_string(),
         );
@@ -310,9 +391,9 @@ mod tests {
             U TENSOR G_H G_I_2
             APPLY U R
             SELECT S1 R 0 1
-            MEASURE S1 'RES'
-            APPLY CNOT R
-            MEASURE R 'RES'
+            MEASURE S1 RES1
+            APPLY G_CNOT R
+            MEASURE R RES2
         "
             .to_string(),
         );
@@ -323,10 +404,8 @@ mod tests {
         assert!(res.is_ok());
 
         let res = res.unwrap();
-        assert!(res.contains_key("RES"));
-        assert_eq!(
-            res.get("RES").unwrap().0,
-            mat![c!(0.5); c!(0.5);c!(0.5);c!(0.5)]
-        );
+        assert!(res.contains_key("RES2"));
+        let res2 = res.get("RES2").unwrap();
+        assert!(res2.1 == "11" || res2.1 == "00");
     }
 }
