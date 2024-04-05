@@ -1,8 +1,6 @@
-use std::option;
-
 use rand::{thread_rng, Rng};
 
-use crate::{c, complex::*, mat, matrix::*, util::f64_equal};
+use crate::{c, matrix::complex::C, matrix::matrix::Matrix, util::f64_equal};
 
 pub fn prob_at(m: &Matrix, idx: usize) -> f64 {
     if (idx >= m.data.len()) || (m.data[0].len() != 1) {
@@ -99,6 +97,8 @@ pub fn measure_partial_vec(m: &Matrix, from: i32, to: i32) -> Matrix {
 
 #[cfg(test)]
 mod tests {
+    use crate::mat;
+
     use super::*;
 
     #[test]

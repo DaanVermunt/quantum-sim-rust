@@ -1,6 +1,6 @@
 use std::{error, fmt, rc::Rc};
 
-use crate::quantum_assembler_lexer::{tokenize, Token, TokenType};
+use super::lexer::{tokenize, Token, TokenType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemoryLocation {
@@ -43,7 +43,7 @@ impl error::Error for ParseError {
     }
 }
 
-pub fn parse_param(param: &Token) -> Result<ASTNode, ParseError> {
+fn parse_param(param: &Token) -> Result<ASTNode, ParseError> {
     match param.token_type {
         TokenType::Literal => Ok(ASTNode::Literal(param.value.clone())),
         TokenType::Prefabs => Ok(ASTNode::Literal(param.value.clone())),
@@ -55,7 +55,7 @@ pub fn parse_param(param: &Token) -> Result<ASTNode, ParseError> {
     }
 }
 
-pub fn parse_dual_token_group(
+fn parse_dual_token_group(
     action: &Token,
     param0: &Token,
     param1: &Token,
@@ -92,7 +92,7 @@ pub fn parse_dual_token_group(
     }
 }
 
-pub fn parse_quat_token_group(
+fn parse_quat_token_group(
     action: &Token,
     param0: &Token,
     param1: &Token,
@@ -119,7 +119,7 @@ pub fn parse_quat_token_group(
     }
 }
 
-pub fn parse_ass_single_token_group(
+fn parse_ass_single_token_group(
     action: &Token,
     ass: &Token,
     param1: &Token,
@@ -140,7 +140,7 @@ pub fn parse_ass_single_token_group(
     }
 }
 
-pub fn parse_ass_dual_token_group(
+fn parse_ass_dual_token_group(
     action: &Token,
     ass: &Token,
     param1: &Token,
@@ -162,7 +162,7 @@ pub fn parse_ass_dual_token_group(
     }
 }
 
-pub fn parse_vector_init(ass: &Token, params: &Vec<Token>) -> Result<ASTNode, ParseError> {
+fn parse_vector_init(ass: &Token, params: &Vec<Token>) -> Result<ASTNode, ParseError> {
     let res = ASTNode::VariableAssignment(
         ass.value.clone(),
         MemoryLocation::Heap,
@@ -182,7 +182,7 @@ pub fn parse_vector_init(ass: &Token, params: &Vec<Token>) -> Result<ASTNode, Pa
     Ok(res)
 }
 
-pub fn parse_token_group(inp: Vec<Token>) -> Result<ASTNode, ParseError> {
+fn parse_token_group(inp: Vec<Token>) -> Result<ASTNode, ParseError> {
     let type_vec: Vec<TokenType> = inp.iter().map(|t| t.token_type).collect();
     match type_vec.as_slice() {
         [TokenType::Action, _, _] => parse_dual_token_group(&inp[0], &inp[1], &inp[2]), // e.g APPLY U R

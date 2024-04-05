@@ -1,6 +1,8 @@
-use crate::{c, complex::*};
-
 use std::ops::{Add, Mul};
+
+use crate::c;
+
+use super::complex::C;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {

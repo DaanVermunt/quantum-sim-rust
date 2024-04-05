@@ -1,10 +1,8 @@
-use std::{collections::HashMap, error, f64::consts::PI, fmt, vec};
+use std::{collections::HashMap, error, f64::consts::PI, fmt};
 
-use crate::{
-    c, cnot, hadamard, mat, matrix, measure_partial_vec, measure_vec, phase_shift, qbit_length,
-    quantum_assembler_parser::{ASTNode, MemoryLocation, AST},
-    Matrix, C,
-};
+use crate::{matrix::complex::C, c, matrix::matrix::{cnot, hadamard, phase_shift, Matrix}};
+
+use super::{parser::{ASTNode, MemoryLocation, AST}, quantum_sim::{measure_partial_vec, measure_vec, qbit_length}};
 
 #[derive(Debug)]
 pub enum RunTimeError {
@@ -35,14 +33,14 @@ type Measurements = HashMap<String, (Matrix, String)>;
 type Selection = HashMap<String, (String, MemoryLocation, i32, i32)>;
 
 #[derive(Debug)]
-pub struct QuantumMemory {
+struct QuantumMemory {
     heap: Heap,
     measurements: Measurements,
     selections: Selection,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LiteralValue {
+enum LiteralValue {
     Matrix(Matrix),
     Int(i32),
 
@@ -51,14 +49,14 @@ pub enum LiteralValue {
     Measurement(Matrix, String),
 }
 
-pub fn unwrap_matrix(lit: &LiteralValue) -> Result<&Matrix, RunTimeError> {
+fn unwrap_matrix(lit: &LiteralValue) -> Result<&Matrix, RunTimeError> {
     match lit {
         LiteralValue::Matrix(m) => Ok(m),
         _ => Err(RunTimeError::SyntaxError("Invalid matrix".to_string())),
     }
 }
 
-pub fn unwrap_selection(
+fn unwrap_selection(
     lit: &LiteralValue,
 ) -> Result<(&String, &MemoryLocation, &i32, &i32), RunTimeError> {
     match lit {
@@ -67,14 +65,14 @@ pub fn unwrap_selection(
     }
 }
 
-pub fn unwrap_int(lit: &LiteralValue) -> Result<&i32, RunTimeError> {
+fn unwrap_int(lit: &LiteralValue) -> Result<&i32, RunTimeError> {
     match lit {
         LiteralValue::Int(m) => Ok(m),
         _ => Err(RunTimeError::SyntaxError("Invalid matrix".to_string())),
     }
 }
 
-pub fn validate_param_len(
+fn validate_param_len(
     params: &Vec<(String, LiteralValue)>,
     expected: usize,
 ) -> Result<(), RunTimeError> {
@@ -87,7 +85,7 @@ pub fn validate_param_len(
     Ok(())
 }
 
-pub fn parse_literal(v: &String) -> Result<LiteralValue, RunTimeError> {
+fn parse_literal(v: &String) -> Result<LiteralValue, RunTimeError> {
     match &v[..] {
         "G_H" => Ok(LiteralValue::Matrix(hadamard())),
         "G_R_2" => Ok(LiteralValue::Matrix(phase_shift(PI / 2.0))),
@@ -105,7 +103,7 @@ pub fn parse_literal(v: &String) -> Result<LiteralValue, RunTimeError> {
     }
 }
 
-pub fn parse_identifier(
+fn parse_identifier(
     var_name: &String,
     memory: &QuantumMemory,
 ) -> Result<LiteralValue, RunTimeError> {
@@ -115,7 +113,7 @@ pub fn parse_identifier(
     }
 }
 
-pub fn parse_var_assignment(
+fn parse_var_assignment(
     var_name: &String,
     val: &ASTNode,
     memory_loc: &MemoryLocation,
@@ -145,7 +143,7 @@ pub fn parse_var_assignment(
     }
 }
 
-pub fn parse_func_application(
+fn parse_func_application(
     func: &String,
     params: &Vec<ASTNode>,
     memory: &mut QuantumMemory,
@@ -292,7 +290,7 @@ pub fn parse_func_application(
     }
 }
 
-pub fn execute_ast_node(
+fn execute_ast_node(
     ast_node: &ASTNode,
     memory: &mut QuantumMemory,
 ) -> Result<Option<(String, LiteralValue)>, RunTimeError> {
@@ -333,7 +331,7 @@ pub fn execute_script(ast: AST) -> Result<HashMap<String, (Matrix, String)>, Run
 
 #[cfg(test)]
 mod tests {
-    use crate::quantum_assembler_parser::parse;
+    use crate::{mat, quantum_assembler::parser::parse};
 
     use super::*;
 
