@@ -22,7 +22,7 @@ impl fmt::Display for RunTimeError {
 impl error::Error for RunTimeError {
     fn description(&self) -> &str {
         match self {
-            RunTimeError::SyntaxError(mess) => "Syntax error in code",
+            RunTimeError::SyntaxError(_) => "Syntax error in code",
             RunTimeError::NotImplemented => "Not implemented",
         }
     }
@@ -30,13 +30,11 @@ impl error::Error for RunTimeError {
 
 type Heap = HashMap<String, LiteralValue>;
 type Measurements = HashMap<String, (Matrix, String)>;
-type Selection = HashMap<String, (String, MemoryLocation, i32, i32)>;
 
 #[derive(Debug)]
 struct QuantumMemory {
     heap: Heap,
     measurements: Measurements,
-    selections: Selection,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -251,7 +249,7 @@ fn parse_func_application(
 
             let vec = unwrap_matrix(&params[0].1);
 
-            if (vec.is_ok()) {
+            if vec.is_ok() {
                 let vec = vec.unwrap();
                 if !vec.is_vector() {
                     return Err(RunTimeError::SyntaxError(
@@ -311,12 +309,10 @@ fn execute_ast_node(
 pub fn execute_script(ast: AST) -> Result<HashMap<String, (Matrix, String)>, RunTimeError> {
     let heap = HashMap::<String, LiteralValue>::new();
     let measurements = HashMap::<String, (Matrix, String)>::new();
-    let selections = HashMap::<String, (String, MemoryLocation, i32, i32)>::new();
 
     let mut memory = QuantumMemory {
         heap,
         measurements,
-        selections,
     };
 
     // LOOP TROUGH AST AND RUN
