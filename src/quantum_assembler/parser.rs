@@ -37,7 +37,7 @@ impl fmt::Display for ParseError {
 impl error::Error for ParseError {
     fn description(&self) -> &str {
         match self {
-            ParseError::SyntaxError(mess) => "Syntax error in code",
+            ParseError::SyntaxError(_) => "Syntax error in code",
             ParseError::NotImplemented => "Not implemented",
         }
     }
