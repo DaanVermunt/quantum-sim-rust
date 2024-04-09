@@ -111,6 +111,18 @@ impl C {
             t: (self.b / self.a).atan(),
         }
     }
+    
+    pub fn pow(&self, pow: usize) -> C {
+        if pow == 0 {
+            return C::new(1, 0);
+        }
+
+        let mut res = self.clone();
+        for _ in 1..pow {
+            res = res * self.clone();
+        }
+        res
+    }
 }
 
 #[macro_export]
@@ -195,5 +207,12 @@ mod tests {
         let root = c!(0, 9).sqrt();
         assert!(root.a - 2.12 < 0.01);
         assert!(root.b - 2.12 < 0.01);
+    }
+
+    #[test]
+    fn test_pow() {
+        let c = c!(2);
+        let res = c.pow(2);
+        assert_eq!(res, c!(4));
     }
 }

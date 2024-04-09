@@ -1,4 +1,5 @@
 mod matrix;
-pub mod quantum_assembler;
-
 mod util;
+
+pub mod quantum_assembler;
+pub mod algorithms;

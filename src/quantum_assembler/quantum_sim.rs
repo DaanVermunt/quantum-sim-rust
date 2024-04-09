@@ -1,6 +1,6 @@
 use rand::{thread_rng, Rng};
 
-use crate::{c, matrix::complex::C, matrix::matrix::Matrix, util::f64_equal};
+use crate::{c, matrix::{complex::C, matrix::Matrix}, util::{f64_equal, index_to_binary_string}};
 
 pub fn prob_at(m: &Matrix, idx: usize) -> f64 {
     if (idx >= m.data.len()) || (m.data[0].len() != 1) {
@@ -11,18 +11,6 @@ pub fn prob_at(m: &Matrix, idx: usize) -> f64 {
     let val = m.data[idx][0].modulus();
 
     val.powf(2.0) / norm.powf(2.0)
-}
-
-fn index_to_binary_string(index: usize, n: usize) -> String {
-    let mut result = String::with_capacity(n);
-    for i in (0..n).rev() {
-        if index & (1 << i) != 0 {
-            result.push('1');
-        } else {
-            result.push('0');
-        }
-    }
-    result
 }
 
 pub fn qbit_length(m: &Matrix) -> usize {
@@ -69,7 +57,6 @@ pub fn measure_partial_vec(m: &Matrix, from: i32, to: i32) -> Matrix {
     // GET PROBABILITIES FOR OPTIONS
     for i in 0..m.size().0 {
         let qbinary = index_to_binary_string(i, qbit_len);
-        println!("Qbinary: {:?}", qbinary);
         for j in 0..option_vector_size {
             let qbinary_selection = index_to_binary_string(j, size);
             if qbinary[from as usize..to as usize] == qbinary_selection {
@@ -137,4 +124,5 @@ mod tests {
         let res = super::measure_partial_vec(&m, 0, 2);
         assert_eq!(res.norm(), 1.0);
     }
+
 }

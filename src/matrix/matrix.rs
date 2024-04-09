@@ -1,6 +1,9 @@
 use std::ops::{Add, Mul};
 
-use crate::c;
+use crate::{
+    c,
+    util::{min_bit_size, mod_power},
+};
 
 use super::complex::C;
 
@@ -236,6 +239,42 @@ pub fn phase_shift(phase: f64) -> Matrix {
     ]
 }
 
+pub fn unitary_modular(a: usize, n: usize) -> Matrix {
+    let nbit_size = min_bit_size(n as u32);
+    let mbit_size = nbit_size * 2;
+    let qbit_size = nbit_size + mbit_size;
+
+    let m_size = (2 as u32).clone().pow(qbit_size.clone() as u32) as usize;
+    let n_bit_represenation = (2 as u32).clone().pow(nbit_size.clone() as u32);
+    let m_bit_represenation = (2 as u32).clone().pow(mbit_size.clone() as u32);
+
+    let mut matrix = Matrix::zero_sq(m_size);
+
+    for i in 0..m_bit_represenation {
+        let f = mod_power(a as u32, i, n as u32) as usize;
+        let sq_factor = (i * n_bit_represenation) as usize;
+        matrix = matrix.set( sq_factor + f, sq_factor, c!(1));
+    }
+
+    matrix
+}
+
+pub fn quantum_fourier(n: usize) -> Matrix {
+    let size = (2 as u32).clone().pow(n.clone() as u32) as usize;
+    let mut matrix = Matrix::zero_sq(size);
+
+    let base = c!((size as f64).powf(-0.5));
+    for i in 0..size {
+        for j in 0..size {
+            let v = c!(0.0, 1.0).pow(i * j);
+            matrix = matrix.set(i, j, base * v);
+        }
+    }
+
+    matrix
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,5 +484,69 @@ mod tests {
 
         let m2 = mat!(c!(1), c!(2); c!(3), c!(4));
         assert!(!m2.is_vector());
+    }
+
+    #[test]
+    fn test_arb_matrix_mult() {
+        let vec = mat!(c!(5); c!(0); c!(5); c!(0); c!(5); c!(0); c!(5); c!(0));
+        let mat = Matrix::zero_sq(8);
+
+        let mat = mat.set(0, 0, c!(1));
+        let mat = mat.set(3, 2, c!(1));
+        let mat = mat.set(4, 4, c!(1));
+        let mat = mat.set(7, 6, c!(1));
+
+        assert_eq!(
+            mat * vec,
+            mat!(c!(5); c!(0); c!(0); c!(5); c!(5); c!(0); c!(0); c!(5))
+        );
+    }
+
+    #[test]
+    fn test_unitary_modular() {
+        let a = 2;
+        let n = 3;
+        let m = unitary_modular(a, n);
+
+        assert_eq!(m.size(), (64, 64));
+        assert_eq!(m.data[1][0], c!(1));
+        assert_eq!(m.data[62][60], c!(1));
+
+        let mut vec = Matrix::zero(64, 1);
+        for i in 0..16 {
+            vec = vec.set(i * 4, 0, c!(5));
+        }
+
+        assert_eq!(vec.data[0][0], c!(5));
+        assert_eq!(vec.data[4][0], c!(5));
+        assert_eq!(vec.data[5][0], c!(0));
+        assert_eq!(vec.data[60][0], c!(5));
+
+        let unitary_apply = m * vec;
+
+        assert_eq!(unitary_apply.data[1][0], c!(5));
+        assert_eq!(unitary_apply.data[6][0], c!(5));
+        assert_eq!(unitary_apply.data[8][0], c!(0));
+        assert_eq!(unitary_apply.data[9][0], c!(5));
+        assert_eq!(unitary_apply.data[10][0], c!(0));
+        assert_eq!(unitary_apply.data[11][0], c!(0));
+        assert_eq!(unitary_apply.data[62][0], c!(5));
+    }
+
+
+    #[test]
+    fn tetst_qft() {
+        let m = quantum_fourier(2);
+
+        let half = c!(0.5);
+
+        let res = mat![
+            c!(1),c!(1),c!(1),c!(1);
+            c!(1),c!(0, 1),c!(-1),c!(0, -1);
+            c!(1),c!(-1),c!(1),c!(-1);
+            c!(1),c!(0, -1),c!(-1),c!(0, 1);
+        ].scalar_mul(half);
+
+        assert_eq!(m, res);
     }
 }

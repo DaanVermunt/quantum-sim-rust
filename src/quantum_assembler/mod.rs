@@ -6,6 +6,7 @@ mod quantum_sim;
 
 mod executor;
 
+#[derive(Debug)]
 pub enum QuantumSimError {
     RuntimeError(executor::RunTimeError),
     ParseError(parser::ParseError),

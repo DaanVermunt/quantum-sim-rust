@@ -1,8 +1,14 @@
 use std::{collections::HashMap, error, f64::consts::PI, fmt};
 
-use crate::{matrix::complex::C, c, matrix::matrix::{cnot, hadamard, phase_shift, Matrix}};
+use crate::{
+    c,
+    matrix::{complex::C, matrix::{cnot, hadamard, phase_shift, quantum_fourier, unitary_modular, Matrix}},
+};
 
-use super::{parser::{ASTNode, MemoryLocation, AST}, quantum_sim::{measure_partial_vec, measure_vec, qbit_length}};
+use super::{
+    parser::{ASTNode, MemoryLocation, AST},
+    quantum_sim::{measure_partial_vec, measure_vec, qbit_length},
+};
 
 #[derive(Debug)]
 pub enum RunTimeError {
@@ -83,16 +89,48 @@ fn validate_param_len(
     Ok(())
 }
 
+fn parse_params_from_prefebs(lit: &String, expected: usize) -> Result<Vec<usize>, RunTimeError> {
+    let re = regex::Regex::new(r"\d+");
+
+    if re.is_err() {
+        return Err(RunTimeError::SyntaxError("Invalid literal".to_string()));
+    }
+
+    let re = re.unwrap();
+
+    let nmbrs: Vec<usize> = re
+        .find_iter(lit)
+        .map(|m| m.as_str().parse::<usize>().unwrap())
+        .collect();
+
+    if nmbrs.len() != expected {
+        return Err(RunTimeError::SyntaxError("Invalid literal".to_string()));
+    }
+
+    Ok(nmbrs)
+}
+
 fn parse_literal(v: &String) -> Result<LiteralValue, RunTimeError> {
-    match &v[..] {
+    match v.as_str() {
         "G_H" => Ok(LiteralValue::Matrix(hadamard())),
-        "G_R_2" => Ok(LiteralValue::Matrix(phase_shift(PI / 2.0))),
-        "G_R_4" => Ok(LiteralValue::Matrix(phase_shift(PI / 4.0))),
-        "G_I_2" => Ok(LiteralValue::Matrix(Matrix::identity(2))),
-        "G_I_4" => Ok(LiteralValue::Matrix(Matrix::identity(4))),
-        "G_I_8" => Ok(LiteralValue::Matrix(Matrix::identity(8))),
         "G_CNOT" => Ok(LiteralValue::Matrix(cnot())),
         _ => {
+            if v.starts_with("G_R_") {
+                let nmbrs = parse_params_from_prefebs(v, 1).unwrap();
+                return Ok(LiteralValue::Matrix(phase_shift(PI / (nmbrs[0] as f64))));
+            }
+            if v.starts_with("G_I_") {
+                let nmbrs = parse_params_from_prefebs(v, 1).unwrap();
+                return Ok(LiteralValue::Matrix(Matrix::identity(nmbrs[0])));
+            }
+            if v.starts_with("G_Uf_") {
+                let nmbrs = parse_params_from_prefebs(v, 2).unwrap();
+                return Ok(LiteralValue::Matrix(unitary_modular(nmbrs[0], nmbrs[1])));
+            }
+            if v.starts_with("G_QFTI_") {
+                let nmbrs = parse_params_from_prefebs(v, 1).unwrap();
+                return Ok(LiteralValue::Matrix(quantum_fourier(nmbrs[0]).adjoint()));
+            }
             if v.parse::<i32>().is_ok() {
                 return Ok(LiteralValue::Int(v.parse::<i32>().unwrap()));
             }
@@ -158,7 +196,7 @@ fn parse_func_application(
 
             let value = unwrap_int(&params[0].1).unwrap();
 
-            let matrix = Matrix::zero(value.clone().pow(2) as usize, 1);
+            let matrix = Matrix::zero((2 as u32).clone().pow(value.clone() as u32) as usize, 1);
             Ok(Some((
                 func.clone(),
                 LiteralValue::Matrix(matrix.set(0, 0, c!(1))),
@@ -211,7 +249,8 @@ fn parse_func_application(
             let matrix = unwrap_matrix(&params[0].1).unwrap();
             let vector = unwrap_matrix(&params[1].1).unwrap();
 
-            if !vector.is_vector() || vector.size().0 != matrix.size().1 || !matrix.is_hermitian() {
+            if !vector.is_vector() || vector.size().0 != matrix.size().1 {
+                println!("Vector{:?} x Matrix{:?}, herm({})", vector.size(), matrix.size(), matrix.is_hermitian());
                 return Err(RunTimeError::SyntaxError(
                     "Input invalid for APPLY, first arg should be a hermetian matrix & the second arg should be vector with equal columns".to_string(),
                 ));
@@ -310,15 +349,12 @@ pub fn execute_script(ast: AST) -> Result<HashMap<String, (Matrix, String)>, Run
     let heap = HashMap::<String, LiteralValue>::new();
     let measurements = HashMap::<String, (Matrix, String)>::new();
 
-    let mut memory = QuantumMemory {
-        heap,
-        measurements,
-    };
+    let mut memory = QuantumMemory { heap, measurements };
 
     // LOOP TROUGH AST AND RUN
     for node in ast {
-        println!("{:?}", node);
-        println!("{:?}", memory.heap);
+        // println!("{:?}", node);
+        // println!("{:?}", memory.heap);
         execute_ast_node(&node, &mut memory).unwrap();
     }
 
